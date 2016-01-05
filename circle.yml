@@ -1,0 +1,41 @@
+machine:
+  environment:
+    # Make CircleCI specific environment variables more generic.
+    BUILD_NUM: "${CIRCLE_BUILD_NUM}"
+    COMMIT_SHA1: "${CIRCLE_SHA1}"
+    BRANCH: "${CIRCLE_BRANCH}"
+    APP_NAME: "${CIRCLE_PROJECT_REPONAME}"
+    COVER_HTML_DIR: "${CIRCLE_ARTIFACTS}"
+    TEST_OUTPUT_DIR: "${CIRCLE_TEST_REPORTS}"
+
+dependencies:
+  cache_directories:
+    # Add a cache directory to save docker images to.
+    - "~/docker"
+  override:
+    # Install golang dependencies, including those for testing.
+    - make test-install
+    # Install golang coverage, coveralls integration, and html coverage
+    # report dependencies.
+    - go get github.com/axw/gocov/gocov
+    - go get github.com/mattn/goveralls
+    - go get gopkg.in/matm/v1/gocov-html
+    # Build the package.
+    - go build
+    # Load data-models-service (dms) image if it exists in cache, or pull it.
+    - if [[ -e ~/docker/dms.tar ]]; then docker load --input
+      ~/docker/dms.tar; else docker pull dbhi/data-models; fi
+    # Save dms image if it doesn't exist.
+    - if [[ ! -e ~/docker/dms.tar ]]; then docker save
+      dbhi/data-models > ~/docker/dms.tar; fi
+
+test:
+  override:
+    - go test -v -cover -race
+      -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json"
+  post:
+    - ${HOME}/gopath/bin/goveralls "${TEST_OUTPUT_DIR}/gotest/gotests.json" >
+      "${COVER_HTML_DIR}/gotests.html"
+    - ${HOME}/gopath/bin/goveralls
+      -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json" -service=circle-ci
+      -repotoken="${COVERALLS_TOKEN}"
