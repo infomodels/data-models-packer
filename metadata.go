@@ -148,7 +148,7 @@ func NewMetadata(path string, site string, model string, modelVersion string, da
 	// lowercase where appropriate.
 	m = &Metadata{
 		path:          path,
-		site:          strings.ToLower(site),
+		site:          site,
 		model:         strings.ToLower(model),
 		modelVersion:  strings.ToLower(modelVersion),
 		dataVersion:   strings.ToLower(dataVersion),
@@ -306,7 +306,11 @@ func (m *Metadata) readData(r io.Reader) (err error) {
 		m.recordMaps = append(m.recordMaps, recordMap)
 
 		for i, val := range record {
-			recordMap[m.header[i]] = strings.ToLower(val)
+			if m.header[i] == "organization" || m.header[i] == "filename" || m.header[i] == "etl" {
+				recordMap[m.header[i]] = val
+			} else {
+				recordMap[m.header[i]] = strings.ToLower(val)
+			}
 		}
 
 		recordMap["line"] = string(line)
@@ -485,6 +489,7 @@ func (m *Metadata) Make(w io.Writer) (err error) {
 		if m.model, err = collectInput("common data model name", modelChoices); err != nil {
 			return err
 		}
+		m.model = strings.ToLower(m.model)
 	}
 
 	// Collect model version if not on Metadata, using version choice list.
@@ -492,6 +497,7 @@ func (m *Metadata) Make(w io.Writer) (err error) {
 		if m.modelVersion, err = collectInput("model version", versionChoices); err != nil {
 			return err
 		}
+		m.modelVersion = strings.ToLower(m.modelVersion)
 	}
 
 	// Collect etl URL (using empty choice list) if not passed.
@@ -586,6 +592,7 @@ func (m *Metadata) makeRowWriter(w io.Writer) (rowWriter filepath.WalkFunc) {
 			if table, err = collectInput(fmt.Sprintf("table name for '%s'", path), m.serviceModels[m.model][m.modelVersion]); err != nil {
 				return err
 			}
+			table = strings.ToLower(table)
 		}
 
 		// Calculate checksum.
@@ -629,14 +636,12 @@ func collectInput(prompt string, choices []string) (input string, err error) {
 		fmt.Printf("Please provide %s: ", prompt)
 		fmt.Scanln(&input)
 
-		input = strings.ToLower(input)
-
 		if len(choices) > 0 {
 
 			found := false
 
 			for _, choice := range choices {
-				if input == choice {
+				if strings.ToLower(input) == choice {
 					found = true
 				}
 			}
