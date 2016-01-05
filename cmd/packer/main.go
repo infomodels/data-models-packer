@@ -178,7 +178,7 @@ func main() {
 		}
 
 		// Verify the metadata file.
-		if err = packer.CreateOrVerifyMetadataFile(inputs[0], site, model, modelVersion, etl, dataVersion, service, true); err != nil {
+		if err = packer.CreateOrVerifyMetadataFile(out, site, model, modelVersion, etl, dataVersion, service, true); err != nil {
 			log.Fatalf("packer: error verifying metadata file: %s", err)
 		}
 

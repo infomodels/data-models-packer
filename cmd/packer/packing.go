@@ -50,6 +50,7 @@ func addEncryption(writer *io.Writer, keyPath string) (closer io.Closer, err err
 		}
 
 		defer keyReaderFile.Close()
+		keyReader = io.Reader(keyReaderFile)
 	}
 
 	encWriter, err := packer.Encrypt(*writer, keyReader)

@@ -175,6 +175,12 @@ func NewMetadata(path string, site string, model string, modelVersion string, da
 	}
 
 	for _, cModel := range cModels.List() {
+
+		// Initialize map for each model.
+		if m.serviceModels[cModel.Name] == nil {
+			m.serviceModels[cModel.Name] = make(map[string]sort.StringSlice)
+		}
+
 		m.serviceModels[cModel.Name]["sorted"] = append(m.serviceModels[cModel.Name]["sorted"], cModel.Version)
 		m.serviceModels[cModel.Name][cModel.Version] = cModel.Tables.Names()
 	}
