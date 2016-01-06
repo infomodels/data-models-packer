@@ -23,18 +23,17 @@ dependencies:
     - go get github.com/mattn/goveralls
     - go get gopkg.in/matm/v1/gocov-html
     # Build the package.
-    - go build
+    - make build
     # Load data-models-service (dms) image if it exists in cache, or pull it.
     - if [[ -e ~/docker/dms.tar ]]; then docker load --input
       ~/docker/dms.tar; else docker pull dbhi/data-models; fi
     # Save dms image if it doesn't exist.
-    - if [[ ! -e ~/docker/dms.tar ]]; then docker save
+    - if [[ ! -e ~/docker/dms.tar ]]; then mkdir -p ~/docker; docker save
       dbhi/data-models > ~/docker/dms.tar; fi
 
 test:
   override:
-    - go test -v -cover -race
-      -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json"
+    - go test -v -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json"
   post:
     - ${HOME}/gopath/bin/goveralls "${TEST_OUTPUT_DIR}/gotest/gotests.json" >
       "${COVER_HTML_DIR}/gotests.html"

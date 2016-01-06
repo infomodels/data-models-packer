@@ -1,6 +1,6 @@
 # Data Models Packer
 
-[![GoDoc](https://godoc.org/github.com/chop-dbhi/data-models-packer?status.svg)](https://godoc.org/github.com/chop-dbhi/data-models-packer)
+[![Circle CI](https://circleci.com/gh/chop-dbhi/data-models-packer.svg?style=svg)](https://circleci.com/gh/chop-dbhi/data-models-packer)[![Coverage Status](https://coveralls.io/repos/chop-dbhi/data-models-packer/badge.svg?branch=master&service=github)](https://coveralls.io/github/chop-dbhi/data-models-packer?branch=master)[![GoDoc](https://godoc.org/github.com/chop-dbhi/data-models-packer?status.svg)](https://godoc.org/github.com/chop-dbhi/data-models-packer)
 
 A packer and unpacker of CSV files adhering to the
 [Data Models](https://github.com/chop-dbhi/data-models) specification.
