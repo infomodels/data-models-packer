@@ -7,7 +7,7 @@ machine:
     COMMIT_SHA1: "${CIRCLE_SHA1}"
     BRANCH: "${CIRCLE_BRANCH}"
     APP_NAME: "${CIRCLE_PROJECT_REPONAME}"
-    COVER_HTML_DIR: "${CIRCLE_ARTIFACTS}"
+    ARTIFACT_DIR: "${CIRCLE_ARTIFACTS}"
     TEST_OUTPUT_DIR: "${CIRCLE_TEST_REPORTS}"
 
 dependencies:
@@ -15,15 +15,19 @@ dependencies:
     # Add a cache directory to save docker images to.
     - "~/docker"
   override:
-    # Install golang dependencies, including those for testing.
+    # Install go dependencies, including those for testing.
     - make test-install
-    # Install golang coverage, coveralls integration, and html coverage
-    # report dependencies.
+    # Install coverage, coveralls integration, and html coverage dependencies.
     - go get github.com/axw/gocov/gocov
     - go get github.com/mattn/goveralls
     - go get gopkg.in/matm/v1/gocov-html
+    - go get github.com/jstemmer/go-junit-report
+    # Install this package to the GOPATH.
+    - go get github.com/chop-dbhi/data-models-packer
     # Build the package.
-    - make build
+    - GIT_SHA=$(shell git log -1 --pretty=format:"%h") go build
+      -ldflags "-X packer.progBuild='$(GIT_SHA)'"
+      -o /home/ubuntu/.go_workspace/bin/data-models-packer ./cmd/packer
     # Load data-models-service (dms) image if it exists in cache, or pull it.
     - if [[ -e ~/docker/dms.tar ]]; then docker load --input
       ~/docker/dms.tar; else docker pull dbhi/data-models; fi
@@ -33,10 +37,17 @@ dependencies:
 
 test:
   override:
-    - go test -v -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json"
+    # Create test output directory.
+    - mkdir -p "${TEST_OUTPUT_DIR}/gotest"
+    # Run tests outputting coverage and jUnit XML data.
+    - cd /home/ubuntu/.go_workspace/src/github.com/chop-dbhi/data-models-packer
+      && go test -v -coverprofile="${ARTIFACT_DIR}/packer.out" |
+      go-junit-report > "${TEST_OUTPUT_DIR}/gotest/packer.xml"
   post:
-    - ${HOME}/gopath/bin/goveralls "${TEST_OUTPUT_DIR}/gotest/gotests.json" >
-      "${COVER_HTML_DIR}/gotests.html"
-    - ${HOME}/gopath/bin/goveralls
-      -coverprofile="${TEST_OUTPUT_DIR}/gotest/gotests.json" -service=circle-ci
+    # Convert to gocov format.
+    - gocov convert "${ARTIFACT_DIR}/packer.out" > "${ARTIFACT_DIR}/packer.json"
+    # Convert to html.
+    - gocov-html "${ARTIFACT_DIR}/packer.json" > "${ARTIFACT_DIR}/packer.html"
+    # Submit to coveralls.
+    - goveralls -gocovdata="${ARTIFACT_DIR}/packer.json" -service=circle-ci
       -repotoken="${COVERALLS_TOKEN}"
