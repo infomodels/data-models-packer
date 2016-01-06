@@ -127,8 +127,8 @@ func addDecryption(reader *io.Reader, keyPath string, keyPassPath string) (err e
 		passReader = io.Reader(passFile)
 	}
 
-	if os.Getenv("PACKER_PRIPASS") != "" {
-		passReader = strings.NewReader(os.Getenv("PACKER_PRIPASS"))
+	if os.Getenv("PACKER_KEYPASS") != "" {
+		passReader = strings.NewReader(os.Getenv("PACKER_KEYPASS"))
 	}
 
 	if decReader, err = packer.Decrypt(*reader, keyReader, passReader); err != nil {

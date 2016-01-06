@@ -40,7 +40,7 @@ unpack or a directory to pack.
 However, the user will usually want to specify an output directory or file,
 at least. Some simple but common examples can be seen in the
 [section below](#examples) and the full argument specification is in the
-[next section](#argument).
+[next section](#arguments).
 
 ### Examples
 
@@ -66,7 +66,7 @@ data-models-packer -keyPath key.asc -keyPassPath pass.txt test.tar.gz.gpg
 
 Unpack an encrypted data archive (with the passphrase in an env var).
 ```
-PACKER_PRIPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
+PACKER_KEYPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
 ```
 
 ### Arguments
@@ -80,11 +80,11 @@ PACKER_PRIPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
 -dataVersion string
       The specific version of the data in the package.
 -etl string
-      The URL of the ETL code used to generate data. Should be valid and
-      accurate over time.
+      The URL of the ETL code used to generate data. Should be specific to the
+      version of code used and remain that way over time.
 -keyPassPath string
       The filepath to the file containing the passphrase needed to access the
-      private key. If omitted, the 'PACKER_PRIPASS' environment variable will
+      private key. If omitted, the 'PACKER_KEYPASS' environment variable will
       be used, if that is unset, the private key is assumed to be unprotected.
 -keyPath string
       The filepath to the public key to use for encrypting packaged data or to
@@ -110,13 +110,16 @@ PACKER_PRIPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
 
 ## Known Bugs
 
-The combination of the tar and gzip golang libraries for writing appears to
+The combination of the tar and gzip Go libraries for writing appears to
 suffer from a bug which makes the  resulting file unreadable for the standard
 command line tools. This means that packages output by data model packer cannot
 be read by standard tar and gzip tools. Unfortunately, .tar.gz is the default
 format output by data model packer and the only compression method compatible
 with encryption at this time. Of course, they can be unpacked by data model
 packer.
+
+The Go zip library is unable to decompress zip archives that use the DEFLATE64
+compression method.
 
 ## Developers
 

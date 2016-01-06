@@ -33,8 +33,8 @@ func main() {
 
 	flag.StringVar(&inputComp, "comp", "", "The compression method to be used: '.zip', '.tar.gz', '.tar.gzip', '.tar.bz2', or '.tar.bzip2'. If omitted, the '.tar.gz' method will be used for packing and the file extension will be used to infer a method for unpacking or the STDIN stream is assumed to be uncompressed.")
 	flag.StringVar(&dataVersion, "dataVersion", "", "The specific version of the data in the package.")
-	flag.StringVar(&etl, "etl", "", "The URL of the ETL code used to generate data. Should be valid and accurate over time.")
-	flag.StringVar(&keyPassPath, "keyPassPath", "", "The filepath to the file containing the passphrase needed to access the private key. If omitted, the 'PACKER_PRIPASS' environment variable will be used, if that is unset, the private key is assumed to be unprotected.")
+	flag.StringVar(&etl, "etl", "", "The URL of the ETL code used to generate data. Should be specific to the version of code used and remain that way over time.")
+	flag.StringVar(&keyPassPath, "keyPassPath", "", "The filepath to the file containing the passphrase needed to access the private key. If omitted, the 'PACKER_KEYPASS' environment variable will be used, if that is unset, the private key is assumed to be unprotected.")
 	flag.StringVar(&keyPath, "keyPath", "", "The filepath to the public key to use for encrypting packaged data or to the private key to use for unpacking encrypted data. If omitted, the data is assumed to be unencrypted.")
 	flag.StringVar(&model, "model", "", "The data model to operate against.")
 	flag.StringVar(&modelVersion, "modelVersion", "", "The specific version of the model to operate against. Defaults to the latest version of the model.")
@@ -212,7 +212,7 @@ Examples:
   data-models-packer -keyPath key.asc -keyPassPath  pass.txt test.tar.gz.gpg
 
   # Unpack an encrypted data archive (with the  passphrase in an env var).
-  PACKER_PRIPASS=foobar data-models-packer -keyPath  key.asc test.tar.gz.gpg
+  PACKER_KEYPASS=foobar data-models-packer -keyPath  key.asc test.tar.gz.gpg
 
 Source: https://github.com/chop-dbhi/data-models-packer
 `

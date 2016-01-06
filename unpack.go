@@ -48,6 +48,8 @@ func NewDecompressingReader(r io.Reader, compr string, size int64) (reader *Deco
 			return nil, errors.New("failed to assert io.ReaderAt type on reader")
 		}
 
+		// BUG(aaron0browne): The zip reader is unable to decompress zip
+		// archives that that use the DEFLATE64 compression method.
 		if reader.zipReader, err = zip.NewReader(readerAt, size); err != nil {
 			return nil, err
 		}

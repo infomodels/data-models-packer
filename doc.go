@@ -59,7 +59,7 @@ Unpack an encrypted data archive (with the passphrase in a file).
 
 Unpack an encrypted data archive (with the passphrase in an env var).
 
-    PACKER_PRIPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
+    PACKER_KEYPASS=foobar data-models-packer -keyPath key.asc test.tar.gz.gpg
 
 Arguments
 
@@ -72,11 +72,11 @@ Arguments
     -dataVersion string
           The specific version of the data in the package.
     -etl string
-          The URL of the ETL code used to generate data. Should be valid and
-          accurate over time.
+          The URL of the ETL code used to generate data. Should be specific to the
+          version of code used and remain that way over time.
     -keyPassPath string
           The filepath to the file containing the passphrase needed to access
-          the private key. If omitted, the 'PACKER_PRIPASS' environment
+          the private key. If omitted, the 'PACKER_KEYPASS' environment
           variable will be used, if that is unset, the private key is assumed
           to be unprotected.
     -keyPath string

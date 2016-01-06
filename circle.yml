@@ -1,4 +1,6 @@
 machine:
+  services:
+    - docker
   environment:
     # Make CircleCI specific environment variables more generic.
     BUILD_NUM: "${CIRCLE_BUILD_NUM}"
