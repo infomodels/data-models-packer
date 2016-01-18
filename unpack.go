@@ -6,6 +6,10 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"errors"
 	"io"
@@ -13,6 +17,172 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 )
+
+// PackageReader encapsulates all the logic and functionality for reading
+// packages.
+type PackageReader struct {
+	decompReader *DecompressingReader
+	inReadCloser io.ReadCloser
+	encReader    io.Reader
+	dataDirPath  string
+}
+
+// NewPackageReader takes an input file path (it will read from STDIN if this
+// is an empty string) and a Config object and returns a properly configured
+// PackageReader that is ready to use.
+func NewPackageReader(cfg *Config) (*PackageReader, error) {
+
+	var (
+		r   = new(PackageReader)
+		err error
+	)
+
+	r.dataDirPath = cfg.DataDirPath
+
+	if cfg.PackagePath != "" {
+
+		// Open the basic file reader.
+		if r.inReadCloser, err = os.Open(cfg.PackagePath); err != nil {
+			return nil, err
+		}
+
+	} else {
+
+		// Open the basic STDIN reader.
+		r.inReadCloser = os.Stdin
+
+	}
+
+	// Add decryption to the reader if necessary.
+	if cfg.KeyPath != "" {
+		if r.encReader, err = makeDecryptingReader(r.inReadCloser, cfg); err != nil {
+			return nil, err
+		}
+	}
+
+	// Add decompression to the reader.
+	if r.encReader != nil {
+		if r.decompReader, err = NewDecompressingReader(r.encReader, cfg.Comp, cfg.PackagePath); err != nil {
+			return nil, err
+		}
+	} else {
+		if r.decompReader, err = NewDecompressingReader(r.inReadCloser, cfg.Comp, cfg.PackagePath); err != nil {
+			return nil, err
+		}
+	}
+
+	return r, nil
+}
+
+// Next advances to the next file in the package, which will be read on the
+// next call to PackageReader.Read.
+func (r *PackageReader) Next() (*tar.Header, error) {
+	return r.decompReader.Next()
+}
+
+// Read reads from the current file in the package.
+func (r *PackageReader) Read(b []byte) (int, error) {
+	return r.decompReader.Read(b)
+}
+
+// Close closes the package reader.
+func (r *PackageReader) Close() error {
+	return r.inReadCloser.Close()
+}
+
+// makeDecryptingReader creates a decrypting reader based on the passed reader
+// using the passed config and returns an io.ReadCloser to read from and close.
+func makeDecryptingReader(reader io.Reader, cfg *Config) (io.Reader, error) {
+
+	var (
+		keyReader        *os.File
+		passReader       io.Reader
+		passFile         *os.File
+		decryptingReader io.Reader
+		err              error
+	)
+
+	if keyReader, err = os.Open(cfg.KeyPath); err != nil {
+		return nil, err
+	}
+
+	defer keyReader.Close()
+
+	passReader = strings.NewReader("")
+
+	if cfg.KeyPassPath != "" {
+
+		if passFile, err = os.Open(cfg.KeyPassPath); err != nil {
+			return nil, err
+		}
+
+		defer passFile.Close()
+
+		passReader = io.Reader(passFile)
+	}
+
+	if os.Getenv("PACKER_KEYPASS") != "" {
+		passReader = strings.NewReader(os.Getenv("PACKER_KEYPASS"))
+	}
+
+	if decryptingReader, err = Decrypt(reader, keyReader, passReader); err != nil {
+		return nil, err
+	}
+
+	return decryptingReader, nil
+}
+
+// Unpack writes files from a package reader to the output directory.
+func (r *PackageReader) Unpack() error {
+
+	for {
+
+		var (
+			fileHeader *tar.Header
+			filePath   string
+			fileDir    string
+			fileInfo   os.FileInfo
+			file       *os.File
+			err        error
+		)
+
+		// Advance to next file in the reader or exit with success if there are
+		// no more.
+		if fileHeader, err = r.Next(); err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		if r.dataDirPath == "" {
+			if r.dataDirPath, err = os.Getwd(); err != nil {
+				return err
+			}
+		}
+
+		filePath = filepath.Join(r.dataDirPath, fileHeader.Name)
+		fileDir = filepath.Dir(filePath)
+		fileInfo = fileHeader.FileInfo()
+
+		// Make directories in file path.
+		if err = os.MkdirAll(fileDir, 0766); err != nil {
+			return err
+		}
+
+		// Open file for writing.
+		if file, err = os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileInfo.Mode()); err != nil {
+			return err
+		}
+		defer file.Close()
+
+		// Write file from the reader.
+		log.Printf("packer: unpacking '%s'", filepath.Base(fileHeader.Name))
+		if _, err = io.Copy(file, r); err != nil {
+			return err
+		}
+	}
+}
 
 // DecompressingReader wraps zip.Reader and tar.Reader in a consistent API.
 type DecompressingReader struct {
@@ -27,11 +197,15 @@ type DecompressingReader struct {
 // NewDecompressingReader takes a reader with compressed data, a string
 // describing the compression method (".tar.gz", ".tar.bz2", or ".zip"), and
 // the size of the reader file and returns a reader that decompresses the data.
-func NewDecompressingReader(r io.Reader, compr string, size int64) (reader *DecompressingReader, err error) {
+func NewDecompressingReader(compressedReader io.Reader, comp string, inputPath string) (*DecompressingReader, error) {
 
-	reader = new(DecompressingReader)
+	var (
+		r   = new(DecompressingReader)
+		fi  os.FileInfo
+		err error
+	)
 
-	switch compr {
+	switch comp {
 	case ".zip":
 
 		// Handle zip decompression specially because the interface is
@@ -41,16 +215,21 @@ func NewDecompressingReader(r io.Reader, compr string, size int64) (reader *Deco
 			found    bool
 		)
 
-		reader.zip = true
-		reader.zipIndex = -1
+		r.zip = true
+		r.zipIndex = -1
 
-		if readerAt, found = r.(io.ReaderAt); !found {
+		if readerAt, found = compressedReader.(io.ReaderAt); !found {
 			return nil, errors.New("failed to assert io.ReaderAt type on reader")
+		}
+
+		// Get file info for zip reader creation.
+		if fi, err = os.Stat(inputPath); err != nil {
+			return nil, err
 		}
 
 		// BUG(aaron0browne): The zip reader is unable to decompress zip
 		// archives that that use the DEFLATE64 compression method.
-		if reader.zipReader, err = zip.NewReader(readerAt, size); err != nil {
+		if r.zipReader, err = zip.NewReader(readerAt, fi.Size()); err != nil {
 			return nil, err
 		}
 
@@ -58,20 +237,20 @@ func NewDecompressingReader(r io.Reader, compr string, size int64) (reader *Deco
 
 		var bzip2Reader io.Reader
 
-		bzip2Reader = bzip2.NewReader(r)
-		reader.tarReader = tar.NewReader(bzip2Reader)
+		bzip2Reader = bzip2.NewReader(compressedReader)
+		r.tarReader = tar.NewReader(bzip2Reader)
 
 	case ".tar.gz":
 
 		// Save the gzipReader for closing later.
-		if reader.gzipReader, err = gzip.NewReader(r); err != nil {
+		if r.gzipReader, err = gzip.NewReader(compressedReader); err != nil {
 			return nil, err
 		}
 
-		reader.tarReader = tar.NewReader(reader.gzipReader)
+		r.tarReader = tar.NewReader(r.gzipReader)
 	}
 
-	return reader, nil
+	return r, nil
 }
 
 // Next advances to the next entry in the compressed file.
@@ -122,17 +301,18 @@ func (r *DecompressingReader) Read(buf []byte) (n int, err error) {
 	return r.tarReader.Read(buf)
 }
 
-// Decrypt takes a reader with encrypted data, a string path to the private key
-// file, and optionally a string path to the passphrase file and returns a
-// reader that decrypts the data. It assumes there is only one OpenPGP entity
-// involved.
-func Decrypt(encReader io.Reader, keyReader io.Reader, passReader io.Reader) (plainReader io.Reader, err error) {
+// Decrypt takes a reader with encrypted data, a reader with the private key,
+// and a reader with the passphrase (or an empty string if the key is
+// unprotected) and returns an io.ReadCloser that decrypts the data. It assumes
+// there is only one OpenPGP entity involved.
+func Decrypt(encReader io.Reader, keyReader io.Reader, passReader io.Reader) (io.Reader, error) {
 
 	var (
 		entityList openpgp.EntityList
 		entity     *openpgp.Entity
 		passphrase []byte
 		msgDetails *openpgp.MessageDetails
+		err        error
 	)
 
 	// Read armored private key into entityList.

@@ -44,26 +44,29 @@ var headerReq = map[string]bool{
 	"data-version": false,
 }
 
-// CreateOrVerifyMetadataFile  is a convenience function that takes a data
+// CreateOrVerifyMetadataFile is a convenience function that takes a data
 // directory path and a set of metadata information and creates a metadata file
 // if none exists or verifies one that already does.
-func CreateOrVerifyMetadataFile(path string, site string, model string, modelVersion string, etl string, dataVersion string, service string, verifyOnly bool) (err error) {
+func CreateOrVerifyMetadataFile(cfg *Config) error {
 
 	var (
 		metadata     *Metadata
 		metadataPath string
 		metadataFile *os.File
+		err          error
 	)
 
+	//
+
 	// Create a Metadata object for this directory.
-	if metadata, err = NewMetadata(path, site, model, modelVersion, etl, dataVersion, service); err != nil {
+	if metadata, err = NewMetadata(cfg); err != nil {
 		return err
 	}
 
 	// Attempt to open the metadata file for writing and examine file opening
 	// error to determine if we need to make the metadata file or just verify
 	// it.
-	metadataPath = filepath.Join(path, "metadata.csv")
+	metadataPath = filepath.Join(cfg.DataDirPath, "metadata.csv")
 	metadataFile, err = os.OpenFile(metadataPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 
 	// File opened for writing without error, create it.
@@ -71,7 +74,7 @@ func CreateOrVerifyMetadataFile(path string, site string, model string, modelVer
 
 		defer metadataFile.Close()
 
-		if verifyOnly {
+		if cfg.VerifyOnly {
 			return errors.New("metadata file not found")
 		}
 
@@ -113,6 +116,7 @@ type Metadata struct {
 	modelVersion string
 	dataVersion  string
 	etl          string
+	service      string
 	/* serviceModels is a simplified version of data models service information
 	   and should look like:
 	   {
@@ -127,41 +131,42 @@ type Metadata struct {
 	serviceModels map[string]map[string]sort.StringSlice
 }
 
-// NewMetadata creates a new Metadata object when given a directory path, any
-// desired metadata information, and optionally a data models service url
-// string.
-func NewMetadata(path string, site string, model string, modelVersion string, dataVersion string, etl string, service string) (m *Metadata, err error) {
+// NewMetadata creates a new Metadata object when given a populated config.
+func NewMetadata(cfg *Config) (*Metadata, error) {
 
 	var (
 		c       *client.Client
 		cModels *client.Models
 		mFound  bool
 		vFound  bool
+		m       *Metadata
+		err     error
 	)
 
 	// Return error if path not given.
-	if path == "" {
-		return nil, errors.New("the Metadata object requires a path to the data directory")
+	if cfg.DataDirPath == "" {
+		return nil, errors.New("the Metadata object requires cfg.DataDirPath")
 	}
 
 	// Initialize with any passed metadata information, standardizing to
 	// lowercase where appropriate.
 	m = &Metadata{
-		path:          path,
-		site:          site,
-		model:         strings.ToLower(model),
-		modelVersion:  strings.ToLower(modelVersion),
-		dataVersion:   strings.ToLower(dataVersion),
-		etl:           etl,
+		path:          cfg.DataDirPath,
+		site:          cfg.Site,
+		model:         strings.ToLower(cfg.Model),
+		modelVersion:  strings.ToLower(cfg.ModelVersion),
+		dataVersion:   strings.ToLower(cfg.DataVersion),
+		etl:           cfg.Etl,
+		service:       cfg.Service,
 		serviceModels: make(map[string]map[string]sort.StringSlice),
 	}
 
 	// Initialize data models service client.
-	if service == "" {
-		service = dataModelsService
+	if m.service == "" {
+		m.service = dataModelsService
 	}
 
-	if c, err = client.New(dataModelsService); err != nil {
+	if c, err = client.New(m.service); err != nil {
 		return nil, err
 	}
 
