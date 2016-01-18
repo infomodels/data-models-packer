@@ -30,6 +30,8 @@ If the final argument is the path to a file, it will be unpacked by:
     - Decompressing the file if it has a recognized compression extension.
     - Verifying the packages integrity using the 'metadata.csv' file.
 
+If the final argument is omitted, **STDIN** will be **unpacked** as above.
+
 Usage
 
 The data models packer binary can minimally be called with simply a file to

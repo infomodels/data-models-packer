@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"strings"
@@ -10,10 +9,20 @@ import (
 
 	"log"
 	"os"
-	"text/template"
 )
 
 func main() {
+
+	// The program can hypothetically be used with no arguments at all, as a
+	// stream processor, but if a panic is triggered (from the tar package
+	// because STDIN is unreadable), it probably means that the user is looking
+	// for the usage, instead.
+	defer func() {
+		if r := recover(); r != nil && len(os.Args) == 1 {
+			flag.Usage()
+		}
+	}()
+
 	var (
 		cfg    = new(packer.Config)
 		out    string
@@ -67,6 +76,8 @@ func main() {
 		if err = packer.CreateOrVerifyMetadataFile(cfg); err != nil {
 			log.Fatalf("packer: error verifying metadata file: %s", err)
 		}
+
+		return
 
 	case 1:
 
@@ -142,12 +153,14 @@ func main() {
 			log.Fatalf("packer: error verifying metadata file: %s", err)
 		}
 
+		return
+
 	default:
 		log.Fatalf("packer: too many inputs (more than one): '%s'", strings.Join(inputs, ", "))
 	}
 }
 
-var usage = `Data Models Packer {{.Version}}
+var usage = `Data Models Packer %s
 
 Usage:
 
@@ -155,7 +168,7 @@ Usage:
 `
 
 var functionality = `
-If the final argument is the path to a directory, it will be packed into the specified file or onto STDIN. If it is the path to a file, it will be unpacked.
+The final argument is the input. If it is the path to a directory, it will be packed into the '-out' file or onto STDOUT. If it is the path to a file, it will be unpacked into the '-out' directory. If it is omitted, STDIN will be unpacked.
 
 Examples:
 
@@ -178,18 +191,8 @@ Source: https://github.com/chop-dbhi/data-models-packer
 `
 
 func init() {
-	var buf bytes.Buffer
-
-	cxt := map[string]interface{}{
-		"Version": packer.Version,
-	}
-
-	template.Must(template.New("usage").Parse(usage)).Execute(&buf, cxt)
-
-	usage = buf.String()
-
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usage, os.Args[0])
+		fmt.Fprintf(os.Stderr, usage, packer.Version, os.Args[0])
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, functionality)
 	}
