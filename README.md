@@ -28,9 +28,11 @@ If the final argument is the path to a **directory**, it will be **packed** by:
 
 If the final argument is the path to a **file**, it will be **unpacked** by:
 
-- Decrypting the file if it has a '.gpg' extension.
+- Decrypting the file if it has a '.gpg' extension and '-keyPath' is passed.
 - Decompressing the file if it has a recognized compression extension.
 - Verifying the packages integrity using the `metadata.csv` file.
+
+If the final argument is omitted, **STDIN** will be **unpacked** as above.
 
 ## Usage
 
