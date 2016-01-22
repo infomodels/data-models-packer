@@ -259,11 +259,11 @@ func (r *DecompressingReader) Next() (header *tar.Header, err error) {
 	// Handle underlying zip.Reader specially, since it has different behavior.
 	if r.zip {
 
-		var file *zip.File
-
 		r.zipIndex++
 
 		if r.zipIndex < len(r.zipReader.File) {
+
+			var file *zip.File
 
 			file = r.zipReader.File[r.zipIndex]
 
@@ -282,6 +282,15 @@ func (r *DecompressingReader) Next() (header *tar.Header, err error) {
 
 		return nil, io.EOF
 	}
+
+	// The `tar` package panics on Next when there is nothing in the reader.
+	// This most often happens when the binary is invoked with no arguments and
+	// nothing on STDIN.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatalf("packer: panic while attempting to get next file in package; see `%s -h` for usage", os.Args[0])
+		}
+	}()
 
 	return r.tarReader.Next()
 }

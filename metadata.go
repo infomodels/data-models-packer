@@ -47,7 +47,7 @@ var headerReq = map[string]bool{
 // CreateOrVerifyMetadataFile is a convenience function that takes a data
 // directory path and a set of metadata information and creates a metadata file
 // if none exists or verifies one that already does.
-func CreateOrVerifyMetadataFile(cfg *Config) error {
+func CreateOrVerifyMetadataFile(cfg *Config, verifyOnly bool) error {
 
 	var (
 		metadata     *Metadata
@@ -74,7 +74,7 @@ func CreateOrVerifyMetadataFile(cfg *Config) error {
 
 		defer metadataFile.Close()
 
-		if cfg.VerifyOnly {
+		if verifyOnly {
 			return errors.New("metadata file not found")
 		}
 
