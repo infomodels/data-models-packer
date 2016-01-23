@@ -20,9 +20,25 @@ type Config struct {
 	PackagePath  string
 	Service      string
 	Site         string
-	VerifyOnly   bool
 	packing      string
 }
+
+type pkgExtensions struct {
+	gpg bool
+	tar bool
+	bz2 bool
+	gz  bool
+	zip bool
+}
+
+var (
+	errExtConflict = errors.New("compression file extensions conflict with each other")
+	errNoTar       = errors.New("cannot use 'bz2' or 'gz' compression without 'tar'")
+	errCfgConflict = errors.New("file extensions conflict with passed compression method")
+	errNoComp      = errors.New("no compression extensions found")
+	errNoKey       = errors.New("no key given for package with 'gpg' extension")
+	errNoGpg       = errors.New("no 'gpg' extension on package but key given")
+)
 
 // Verify verifies the validity of a configuration.
 func (cfg *Config) Verify() error {
@@ -40,29 +56,15 @@ func (cfg *Config) Verify() error {
 func (cfg *Config) handleExtensions() error {
 
 	var (
-		name           string
-		exts           map[string]bool
-		j              int
-		i              int
-		cfgConflictErr error
-		noTarErr       error
-		extConflictErr error
-		noCompErr      error
-		noKeyErr       error
-		noGpgErr       error
+		name string
+		exts = new(pkgExtensions)
+		j    int
+		i    int
 	)
 
 	name = filepath.Base(cfg.PackagePath)
 
-	// Read file extensions and normalize them into a map.
-	exts = map[string]bool{
-		"gpg": false,
-		"tar": false,
-		"bz2": false,
-		"gz":  false,
-		"zip": false,
-	}
-
+	// Read file extensions and normalize them into a struct.
 	j = len(name)
 
 	for i = len(name) - 1; i >= 0; i-- {
@@ -72,23 +74,23 @@ func (cfg *Config) handleExtensions() error {
 			switch name[i+1 : j] {
 
 			case "gpg":
-				exts["gpg"] = true
+				exts.gpg = true
 				j = i
 
 			case "tar":
-				exts["tar"] = true
+				exts.tar = true
 				j = i
 
 			case "bzip2", "bz2":
-				exts["bz2"] = true
+				exts.bz2 = true
 				j = i
 
 			case "gzip", "gz":
-				exts["gz"] = true
+				exts.gz = true
 				j = i
 
 			case "zip":
-				exts["zip"] = true
+				exts.zip = true
 				j = i
 
 			default:
@@ -98,50 +100,43 @@ func (cfg *Config) handleExtensions() error {
 	}
 
 	// Resolve config with file extensions, throwing errors where appropriate.
-	extConflictErr = errors.New("compression file extensions conflict with each other")
-	noTarErr = errors.New("cannot use 'bz2' or 'gz' compression without 'tar'")
-	cfgConflictErr = errors.New("file extensions conflict with passed compression method")
-	noCompErr = errors.New("no compression extensions found")
-	noKeyErr = errors.New("no key given for package with 'gpg' extension")
-	noGpgErr = errors.New("no 'gpg' extension on package but key given")
-
 	switch {
 
-	case exts["gz"] && exts["bz2"] || exts["gz"] && exts["zip"] || exts["bz2"] && exts["zip"]:
-		return extConflictErr
+	case exts.gz && exts.bz2 || exts.gz && exts.zip || exts.bz2 && exts.zip:
+		return errExtConflict
 
-	case exts["gz"] && !exts["tar"] || exts["bz2"] && !exts["tar"]:
-		return noTarErr
+	case exts.gz && !exts.tar || exts.bz2 && !exts.tar:
+		return errNoTar
 
-	case exts["tar"] && exts["gz"]:
+	case exts.tar && exts.gz:
 		if cfg.Comp != "" && cfg.Comp != ".tar.gz" && cfg.Comp != ".tar.gzip" {
-			return cfgConflictErr
+			return errCfgConflict
 		}
 		cfg.Comp = ".tar.gz"
 
-	case exts["tar"] && exts["bz2"]:
+	case exts.tar && exts.bz2:
 		if cfg.Comp != "" && cfg.Comp != ".tar.bz2" && cfg.Comp != ".tar.bzip2" {
-			return cfgConflictErr
+			return errCfgConflict
 		}
 		cfg.Comp = ".tar.bz2"
 
-	case exts["zip"]:
+	case exts.zip:
 		if cfg.Comp != "" && cfg.Comp != ".zip" {
-			return cfgConflictErr
+			return errCfgConflict
 		}
 		cfg.Comp = ".zip"
 
 	default:
-		return noCompErr
+		return errNoComp
 	}
 
 	switch {
 
-	case cfg.KeyPath == "" && exts["gpg"]:
-		return noKeyErr
+	case cfg.KeyPath == "" && exts.gpg:
+		return errNoKey
 
-	case cfg.KeyPath != "" && !exts["gpg"]:
-		return noGpgErr
+	case cfg.KeyPath != "" && !exts.gpg:
+		return errNoGpg
 
 	}
 

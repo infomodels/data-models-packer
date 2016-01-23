@@ -13,21 +13,12 @@ import (
 
 func main() {
 
-	// The program can hypothetically be used with no arguments at all, as a
-	// stream processor, but if a panic is triggered (from the tar package
-	// because STDIN is unreadable), it probably means that the user is looking
-	// for the usage, instead.
-	defer func() {
-		if r := recover(); r != nil && len(os.Args) == 1 {
-			flag.Usage()
-		}
-	}()
-
 	var (
-		cfg    = new(packer.Config)
-		out    string
-		inputs []string
-		err    error
+		cfg        = new(packer.Config)
+		out        string
+		verifyOnly bool
+		inputs     []string
+		err        error
 	)
 
 	flag.StringVar(&cfg.Comp, "comp", "", "The compression method to be used: '.zip', '.tar.gz', '.tar.gzip', '.tar.bz2', or '.tar.bzip2'. If omitted, the '.tar.gz' method will be used for packing and the file extension will be used to infer a method for unpacking or the STDIN stream is assumed to be uncompressed.")
@@ -40,17 +31,15 @@ func main() {
 	flag.StringVar(&out, "out", "", "The directory or filename that should be written to. If omitted, data will be unpacked into the current directory or packed onto STDOUT.")
 	flag.StringVar(&cfg.Service, "service", "", "The URL of the data models service to use for fetching schema information.")
 	flag.StringVar(&cfg.Site, "site", "", "The site that generated the data.")
-	flag.BoolVar(&cfg.VerifyOnly, "verifyOnly", false, "Only verify an existing 'metadata.csv' file in the given data directory. Do not package the directory.")
+	flag.BoolVar(&verifyOnly, "verifyOnly", false, "Only verify an existing 'metadata.csv' file in the given data directory. Do not package the directory.")
 
 	flag.Parse()
 	inputs = flag.Args()
 
 	switch len(inputs) {
 
+	// Input is from STDIN. Unpack it.
 	case 0:
-
-		// Input is from STDIN. Unpack it.
-		var packageReader *packer.PackageReader
 
 		// Update config with proper command line arguments.
 		cfg.DataDirPath = out
@@ -58,6 +47,9 @@ func main() {
 		if err = cfg.Verify(); err != nil {
 			log.Fatalf("packer: configuration error: %s", err)
 		}
+
+		// Create package reader.
+		var packageReader *packer.PackageReader
 
 		if packageReader, err = packer.NewPackageReader(cfg); err != nil {
 			log.Fatalf("packer: error creating unpacking writer: %s", err)
@@ -71,14 +63,13 @@ func main() {
 		}
 
 		// Verify the metadata file.
-		cfg.VerifyOnly = true
-
-		if err = packer.CreateOrVerifyMetadataFile(cfg); err != nil {
+		if err = packer.CreateOrVerifyMetadataFile(cfg, true); err != nil {
 			log.Fatalf("packer: error verifying metadata file: %s", err)
 		}
 
 		return
 
+	// Input path passed. Behavior depends on whether it is a file or a dir.
 	case 1:
 
 		var inputIsDir bool
@@ -91,8 +82,6 @@ func main() {
 		// Input path is a directory. Pack it.
 		if inputIsDir {
 
-			var packageWriter *packer.PackageWriter
-
 			// Update config with proper command line arguments.
 			cfg.DataDirPath = inputs[0]
 			cfg.PackagePath = out
@@ -101,16 +90,18 @@ func main() {
 			}
 
 			// Create or verify the metadata file.
-			if err = packer.CreateOrVerifyMetadataFile(cfg); err != nil {
+			if err = packer.CreateOrVerifyMetadataFile(cfg, verifyOnly); err != nil {
 				log.Fatalf("packer: error creating or verifying metadata file: %s", err)
 			}
 
 			// Exit if only metadata verification requested.
-			if cfg.VerifyOnly {
+			if verifyOnly {
 				return
 			}
 
 			// Create package writer.
+			var packageWriter *packer.PackageWriter
+
 			if packageWriter, err = packer.NewPackageWriter(cfg); err != nil {
 				log.Fatalf("packer: error creating package writer: %s", err)
 			}
@@ -126,7 +117,6 @@ func main() {
 		}
 
 		// Input path is a file. Unpack it.
-		var packageReader *packer.PackageReader
 
 		// Update config with proper command line arguments.
 		cfg.DataDirPath = out
@@ -134,6 +124,9 @@ func main() {
 		if err = cfg.Verify(); err != nil {
 			log.Fatalf("packer: configuration error: %s", err)
 		}
+
+		// Create package reader
+		var packageReader *packer.PackageReader
 
 		if packageReader, err = packer.NewPackageReader(cfg); err != nil {
 			log.Fatalf("packer: error creating unpacking writer: %s", err)
@@ -147,9 +140,7 @@ func main() {
 		}
 
 		// Verify the metadata file.
-		cfg.VerifyOnly = true
-
-		if err = packer.CreateOrVerifyMetadataFile(cfg); err != nil {
+		if err = packer.CreateOrVerifyMetadataFile(cfg, true); err != nil {
 			log.Fatalf("packer: error verifying metadata file: %s", err)
 		}
 
