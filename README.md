@@ -53,7 +53,7 @@ data-models-packer -out test.tar.gz.gpg data/test
 
 Verify an existing metadata.csv file only.
 ```
-data-models-packer -verifyMetadata data/test
+data-models-packer -verifyOnly data/test
 ```
 
 Unpack an unencrypted package into a directory.
