@@ -110,7 +110,7 @@ func (w *PackageWriter) Write(b []byte) (int, error) {
 func (w *PackageWriter) Close() error {
 	var err error
 
-	if err = w.outWriteCloser.Close(); err != nil {
+	if err = w.compWriter.Close(); err != nil {
 		return err
 	}
 
@@ -120,7 +120,7 @@ func (w *PackageWriter) Close() error {
 		}
 	}
 
-	if err = w.compWriter.Close(); err != nil {
+	if err = w.outWriteCloser.Close(); err != nil {
 		return err
 	}
 

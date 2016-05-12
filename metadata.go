@@ -60,7 +60,7 @@ func CreateOrVerifyMetadataFile(cfg *Config, verifyOnly bool) error {
 
 	// Create a Metadata object for this directory.
 	if metadata, err = NewMetadata(cfg); err != nil {
-		return err
+		return fmt.Errorf("NewMetadata() failed: %v", err)
 	}
 
 	// Attempt to open the metadata file for writing and examine file opening
@@ -79,7 +79,7 @@ func CreateOrVerifyMetadataFile(cfg *Config, verifyOnly bool) error {
 		}
 
 		if err = metadata.Make(metadataFile); err != nil {
-			return err
+			return fmt.Errorf("metadata.Make() failed: %v", err)
 		}
 
 		return nil
@@ -95,7 +95,7 @@ func CreateOrVerifyMetadataFile(cfg *Config, verifyOnly bool) error {
 		defer metadataFile.Close()
 
 		if err = metadata.Check(metadataFile); err != nil {
-			return err
+			return fmt.Errorf("metadata.csv file is invalid: %v", err)
 		}
 
 		return nil
@@ -167,16 +167,16 @@ func NewMetadata(cfg *Config) (*Metadata, error) {
 	}
 
 	if c, err = client.New(m.service); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error creating data models service client: %v", err)
 	}
 
 	if err = c.Ping(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error pinging data models service: %v", err)
 	}
 
 	// Construct serviceModels map.
 	if cModels, err = c.Models(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error constructing serviceModels map: %v", err)
 	}
 
 	for _, cModel := range cModels.List() {
@@ -318,7 +318,7 @@ func (m *Metadata) readData(r io.Reader) (err error) {
 			}
 		}
 
-		recordMap["line"] = string(line)
+		recordMap["line"] = fmt.Sprintf("%v", line)
 	}
 
 	return nil
@@ -353,8 +353,8 @@ func (m *Metadata) Check(r io.Reader) (err error) {
 		}
 
 		// Check that site matches Metadata site, if present.
-		if m.site != "" && recordMap["site"] != m.site {
-			return fmt.Errorf("line '%s' site '%s' does not match expected site '%s'", recordMap["line"], recordMap["site"], m.site)
+		if m.site != "" && recordMap["organization"] != m.site {
+			return fmt.Errorf("line '%s' organization '%s' does not match expected site '%s'", recordMap["line"], recordMap["site"], m.site)
 		}
 
 		// Check that model and version exist in the info retrieved from data

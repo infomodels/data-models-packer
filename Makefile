@@ -22,6 +22,11 @@ build:
 		-ldflags "-X packer.progBuild='$(GIT_SHA)'" \
 		-o $(GOPATH)/bin/data-models-packer ./cmd/packer
 
+metamaker:
+	go build \
+		-ldflags "-X packer.progBuild='$(GIT_SHA)'" \
+		-o $(GOPATH)/bin/metamaker ./cmd/metamaker
+
 # Build and tag binaries for each OS and architecture.
 dist-build:
 	mkdir -p dist
